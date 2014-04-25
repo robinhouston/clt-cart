@@ -3,6 +3,7 @@
 from __future__ import division
 
 import csv
+import math
 import optparse
 import sys
 
@@ -25,21 +26,21 @@ def compute_errors(input_filename, areas_filename, options, fail):
     input_data = load(input_filename, options.input_key, options.input_value, fail)
     area_data = load(areas_filename, options.area_key, options.area_value, fail)
     
-    min_density = float("Inf")
-    max_density = 0
-    min_region, max_region = None, None
+    sum_of_values = 0
+    sum_of_squares = 0
+    n = 0
     
     for k in input_data.iterkeys():
         if k in area_data:
-            density = input_data[k] / area_data.get(k)
-            if density < min_density:
-                min_region = k
-                min_density = density
-            if density > max_density:
-                max_region = k
-                max_density = density
+            area = area_data[k]
+            density = area / input_data[k]
+            sum_of_values += density
+            sum_of_squares += density*density
+            n += 1
     
-    print "Density ranges from %g (in %s) to %g (in %s)" % (min_density, min_region, max_density, max_region)
+    mean = sum_of_values / n
+    variance = (sum_of_squares / n) - mean*mean
+    print "Mean = %g, standard deviation = %g, n=%d" % (mean, math.sqrt(variance), n)
 
 def main():
     parser = optparse.OptionParser(usage="%prog [options] input-data.csv areas.csv")
