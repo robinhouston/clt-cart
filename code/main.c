@@ -93,10 +93,13 @@ int load_points(FILE *fp, int xsize, int ysize,
 
 /* Write out the coordinates of the transformed points */
 
-void writepoints(FILE *stream, double *points_x, double *points_y, int npoints)
-{
+void writepoints(FILE *stream, int xsize, int ysize,
+                 double *points_x, double *points_y,
+                 int npoints) {
   int i;
-  for (i=0; i<npoints; i++) fprintf(stream,"%g %g\n", points_x[i], points_y[i]);
+  for (i=0; i<npoints; i++) {
+    fprintf(stream, "%g %g\n", points_x[i] - xsize, points_y[i] - ysize);
+  }
 }
 
 static void usage(char *program_name)
@@ -209,7 +212,7 @@ int main(int argc, char *argv[])
   cart_makecart(points_x, points_y, npoints, xsize * 3, ysize * 3, &options);
 
   /* Write out the final positions of the points */
-  writepoints(stdout, points_x, points_y, npoints);
+  writepoints(stdout, xsize, ysize, points_x, points_y, npoints);
 
   /* Free up the allocated space */
   cart_freews(xsize, ysize);
