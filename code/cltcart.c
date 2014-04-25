@@ -106,38 +106,17 @@ void cart_freews(int xsize, int ysize)
 }
 
 
-/* Function to calculate the discrete cosine transform of the input data.
- * This function is just a wrapper for forward(), so the user doesn't
- * need to see the fftw-format density array */
+/* Copy the densities to snapshot zero. */
 
 void cart_transform(double **userrho, int xsize, int ysize)
 {
   int i;
   
-  for (i=0; i < xsize * ysize) {
+  for (i=0; i < xsize * ysize; i++) {
     rhot[0][i] = (*userrho)[i];
   }
 }
 
-
-/** Calculate the population density at arbitrary time, and put the result
- in a particular rhot[] snapshot array. Use a box blur with the same variance
- as the Gaussian. */
-void cart_density(int from_s, double delta_t, int to_s, int xsize, int ysize)
-{
-  double w;
-  int x, y;
-  
-  /* delta_t is σ^2 / 2, and the variance of a box filter with half-width w is w^2 / 3 */
-  w = sqrt(6 * delta_t);
-  
-  for (x=0; x < xsize; x++) {
-    cart_density_stripe(rhot[from_s], w, temp, x, xsize, ysize);
-  }
-  for (y=0; y < ysize; y++) {
-    cart_density_stripe(temp, w, rhot[to_s], y * xsize, 1, ysize);
-  }
-}
 
 void cart_density_stripe(double *from, double w, double *to, int start, int step, int n)
 {
@@ -176,34 +155,22 @@ void cart_density_stripe(double *from, double w, double *to, int start, int step
   }
 }
 
-
-/* Function to calculate the population density at arbitrary time by back-
- * transforming and put the result in a particular rhot[] snapshot array.
- * Calculates unnormalized densities, since FFTW gives unnormalized back-
- * transforms, but this doesn't matter because the cartogram method is
- * insensitive to variation in the density by a multiplicative constant */
-
-void cart_density(double t, int s, int xsize, int ysize)
+/** Calculate the population density at arbitrary time, and put the result
+ in a particular rhot[] snapshot array. Use a box blur with the same variance
+ as the Gaussian. */
+void cart_density(int from_s, double delta_t, int to_s, int xsize, int ysize)
 {
-  int ix,iy;
-  double kx,ky;
-  double expkx;
-
-  /* Calculate the expky array, to save time in the next part */
-
-  for (iy=0; iy<ysize; iy++) {
-    ky = PI*iy/ysize;
-    expky[iy] = exp(-ky*ky*t);
+  double w;
+  int x, y;
+  
+  /* delta_t is σ^2 / 2, and the variance of a box filter with half-width w is w^2 / 3 */
+  w = sqrt(6.0 * delta_t);
+  
+  for (x=0; x < xsize; x++) {
+    cart_density_stripe(rhot[from_s], w, temp, x * ysize, 1, ysize);
   }
-
-  /* Multiply the FT of the density by the appropriate factors */
-
-  for (ix=0; ix<xsize; ix++) {
-    kx = PI*ix/xsize;
-    expkx = exp(-kx*kx*t);
-    for (iy=0; iy<ysize; iy++) {
-      fftexpt[ix*ysize+iy] = expkx*expky[iy]*fftrho[ix*ysize+iy];
-    }
+  for (y=0; y < ysize; y++) {
+    cart_density_stripe(temp, w, rhot[to_s], y, ysize, xsize);
   }
 }
 
@@ -380,10 +347,10 @@ void cart_twosteps(double *pointx, double *pointy, int npoints,
 
   /* Calculate the density field for the four new time slices */
 
-  cart_density(t+0.5*h,s1,xsize,ysize);
-  cart_density(t+1.0*h,s2,xsize,ysize);
-  cart_density(t+1.5*h,s3,xsize,ysize);
-  cart_density(t+2.0*h,s4,xsize,ysize);
+  cart_density(s0, 0.5*h, s1, xsize, ysize);
+  cart_density(s1, 0.5*h, s2, xsize, ysize);
+  cart_density(s2, 0.5*h, s3, xsize, ysize);
+  cart_density(s3, 0.5*h, s4, xsize, ysize);
 
   /* Calculate the resulting velocity grids */
 
@@ -527,10 +494,9 @@ void cart_makecart(double *pointx, double *pointy, int npoints,
   pointx_copy = malloc(npoints * sizeof(double));
   pointy_copy = malloc(npoints * sizeof(double));
 
-  /* Calculate the initial density and velocity for snapshot zero */
+  /* Calculate the initial velocity for snapshot zero */
 
-  cart_density(0.0,0,xsize,ysize);
-  cart_vgrid(0,xsize,ysize);
+  cart_vgrid(0, xsize, ysize);
   s = 0;
 
   /* Now integrate the points in the polygons */
