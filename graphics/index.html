@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8">
+		<title>Cartogram visualisation</title>
+		<script src="d3.v3.min.js"></script>
+		<script src="topojson.v1.min.js"></script>
+		<style>
+			#container { position: relative; }
+			#container #map, #container canvas { position: absolute; top: 0; left: 0; }
+			svg path { fill: #666; stroke: white; }
+			canvas { display: none; }
+		</style>
+	</head>
+	<body>
+		<h1>Cartograms</h1>
+		<div id="container">
+			<div id="map"></div>
+		</div>
+		
+		<script>
+			function log () {
+				if (window.console && console.log) {
+					if (console.log.apply) {
+						console.log.apply(console, arguments);
+					}
+					else if (Function && Function.prototype && Function.prototype.bind) {
+						var log = Function.prototype.bind.call(console.log, console);
+						log.apply(console, arguments);
+					}
+				}
+			}
+			
+			var X_MIN = -17005833.33053,
+			    X_MAX = 17005833.33053,
+			    Y_MIN = -8625154.47185,
+			    Y_MAX = 8625154.47185,
+			
+			    WIDTH = 500,
+			    HEIGHT = 250;
+			
+			var svg = d3.select("#map").append("svg").attr("width", WIDTH).attr("height", HEIGHT);
+			
+			function load(json_path, callback) {
+				d3.json(json_path, function(error, data, z) {
+					if (error) {
+						log("Error loading " + json_path);
+						return;
+					}
+				
+					var path = d3.geo.path().projection(d3.geo.transform({point: function(x, y) {
+						x = Math.round(WIDTH * (x - X_MIN) / (X_MAX - X_MIN));
+						y = Math.round(HEIGHT * (y - Y_MIN) / (Y_MAX - Y_MIN));
+						this.stream.point(x, HEIGHT - y);
+					}}));
+					var geometry_collection = topojson.feature(data, data.objects["map.geo"]);
+
+					var paths = svg.selectAll("path").data(geometry_collection.features);
+					paths.enter().append("path").attr("id", function(d) { return d.id; });
+					paths.transition().duration(1000).attr("d", path);
+
+					paths.exit().remove();
+					
+					if (callback) callback();
+				});
+			}
+			
+			function drawDensity(grid_url, cx) {
+				d3.xhr(grid_url, function(error, xhr) {
+					if (error) {
+						log("Error loading " + grid_url);
+						return;
+					}
+					var data = xhr.responseText,
+					    image_data = cx.createImageData(WIDTH, HEIGHT);
+					
+					var rows = data.split("\n");
+					for (var i=0; i<HEIGHT; i++) {
+						var row = rows[i];
+						var cells = row.split(" ");
+						for (var j=0; j<WIDTH; j++) {
+							var cell = parseFloat(cells[j]);
+							var offset = ((HEIGHT - i) * WIDTH + j) * 4;
+							image_data.data[offset] = 0xFF;
+							image_data.data[offset + 3] = 0x40 * cell;
+						}
+					}
+					cx.putImageData(image_data, 0, 0);
+				});
+			}
+			
+			load("map-original.topo.json", function() {
+				setTimeout(function() { load("map-cart.topo.json"); }, 1000);
+			});
+			
+			var canvas = d3.select("#container").append("canvas").attr("width", WIDTH).attr("height", HEIGHT),
+			    cx = canvas.node().getContext("2d");
+			drawDensity("density.grid", cx);
+		</script>
+	</body>
+</html>
