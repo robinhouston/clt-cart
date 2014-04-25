@@ -1,17 +1,19 @@
+simplification=5000
+
 .PHONY: measure
 measure: out/cart/areas.csv
-	bin/accuracy.py data/population.csv data/area.csv
+	bin/accuracy.py data/population.csv $<
 
-out/cart/areas.csv: out/cart/map.topo.json
-	bin/topojson-area out/cart/map.topo.json > $@
+out/%/areas.csv: out/%/map.topo.json
+	bin/topojson-area $< > $@
 
-out/cart/map.topo.json: data/map.topo.json out/cart/points.txt
-	bin/tj-update-points.py data/map.topo.json out/cart/points.txt > $@
+out/%/map.topo.json: out/%/points.txt data/map.topo.json
+	bin/tj-update-points.py data/map.topo.json $< > $@
 
-out/cart/points.txt: data/density.grid data/points.txt
+out/cart/points.txt: data/density.grid data/points.txt code/cart
 	code/cart 500 250 data/density.grid data/points.txt > $@
 
-data/density.grid: data/population.csv data/area.csv
+data/density.grid: data/population.csv data/area.csv bin/density-grid.py
 	bin/density-grid.py data/map-grid.csv \
 	    --numerator-key=Country --numerator-value=Population data/population.csv \
 	    --denominator-key="Feature ID" --denominator-value=Area data/area.csv \
@@ -27,9 +29,8 @@ data/map.topo.json: data/map.geo.json
 	topojson -o $@ data/map.geo.json
 
 data/map.geo.json:
-	simplification=5000
 	/usr/local/cartograms/bin/as-js.py --format=geojson --map=world-robinson \
-		--simplification="$simplification" > $@
+		--simplification="$(simplification)" > $@
 
 data/population.csv:
 	(
