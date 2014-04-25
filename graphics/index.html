@@ -9,6 +9,7 @@
 			body { font-family: sans-serif; }
 			#menu { width: 1000px; text-align: center; margin: 12px 0; }
 			#menu a { padding: 0 8px; }
+			#menu a.selected { font-weight: bold; }
 			#menu a:visited { color: blue; }
 			#container { position: relative; }
 			#container #map, #container canvas { position: absolute; top: 0; left: 0; }
@@ -118,8 +119,12 @@
 				var filename = MAPS[window.location.hash];
 				if (typeof filename == "undefined") {
 					filename = "map-original.topo.json";
+					window.location.hash = "#original";
 				}
 				load(filename);
+				d3.selectAll("#menu a").classed("selected", function() {
+					return this.getAttribute("href") == window.location.hash;
+				});
 			}
 			
 			window.addEventListener("hashchange", function(x) {
