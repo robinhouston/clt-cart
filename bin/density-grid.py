@@ -31,7 +31,7 @@ def density_grid(grid_filename, numerator_filename, denominator_filename, option
     grid = [
         [
             numerators.get(region, NaN) / denominators.get(region, 1.0)
-            for region in row
+            for region in row[1:]
         ]
         for row in region_grid
     ]
