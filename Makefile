@@ -10,6 +10,9 @@ out/%/areas.csv: out/%/map.topo.json
 out/%/map.topo.json: out/%/points.txt data/map.topo.json
 	bin/tj-update-points.py data/map.topo.json $< > $@
 
+out/blur/points.txt: data/density.grid data/points.txt code/cart
+	code/cart --blur=2 500 250 data/density.grid data/points.txt > $@
+
 out/cart/points.txt: data/density.grid data/points.txt code/cart
 	code/cart 500 250 data/density.grid data/points.txt > $@
 
