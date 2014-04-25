@@ -28,7 +28,7 @@
 
 /* Globals */
 
-double *rhot[5];       // Pop density at time t (five snaps needed)
+double *rhot;          // Pop density at time t
 double *fftrho;        // FT of initial density
 double *fftexpt;       // FT of density at time t
 
@@ -37,7 +37,7 @@ double **vyt[5];       // y-velocity at time t
 
 double *expky;         // Array needed for the Gaussian convolution
 
-fftw_plan rhotplan[5]; // Plan for rho(t) back-transform at time t
+fftw_plan rhotplan; // Plan for rho(t) back-transform at time t
 
 
 /* Function to make space for the density array.  This is done in such a
@@ -75,7 +75,7 @@ void cart_makews(int xsize, int ysize)
   /* Space for the FFT arrays is allocated single blocks, rather than using
    * a true two-dimensional array, because libfftw demands that it be so */
 
-  for (s=0; s<5; s++) rhot[s] = fftw_malloc(xsize*ysize*sizeof(double));
+  rhot = fftw_malloc(xsize*ysize*sizeof(double));
   fftrho = fftw_malloc(xsize*ysize*sizeof(double));
   fftexpt = fftw_malloc(xsize*ysize*sizeof(double));
 
@@ -92,10 +92,8 @@ void cart_makews(int xsize, int ysize)
 
   /* Make plans for the back transforms */
 
-  for (i=0; i<5; i++) {
-    rhotplan[i] = fftw_plan_r2r_2d(xsize,ysize,fftexpt,rhot[i],
+  rhotplan = fftw_plan_r2r_2d(xsize,ysize,fftexpt,rhot,
 				   FFTW_REDFT01,FFTW_REDFT01,FFTW_MEASURE);
-  }
 }
 
 
@@ -106,7 +104,7 @@ void cart_freews(int xsize, int ysize)
 {
   int s,i;
 
-  for (s=0; s<5; s++) fftw_free(rhot[s]);
+  fftw_free(rhot);
   fftw_free(fftrho);
   fftw_free(fftexpt);
 
@@ -121,7 +119,7 @@ void cart_freews(int xsize, int ysize)
 
   free(expky);
 
-  for (i=0; i<5; i++) fftw_destroy_plan(rhotplan[i]);
+  fftw_destroy_plan(rhotplan);
 }
 
 
@@ -151,12 +149,12 @@ void cart_transform(double **userrho, int xsize, int ysize)
 
 
 /* Function to calculate the population density at arbitrary time by back-
- * transforming and put the result in a particular rhot[] snapshot array.
+ * transforming and put the result in the rhot snapshot array.
  * Calculates unnormalized densities, since FFTW gives unnormalized back-
  * transforms, but this doesn't matter because the cartogram method is
  * insensitive to variation in the density by a multiplicative constant */
 
-void cart_density(double t, int s, int xsize, int ysize)
+void cart_density(double t, int xsize, int ysize)
 {
   int ix,iy;
   double kx,ky;
@@ -181,7 +179,7 @@ void cart_density(double t, int s, int xsize, int ysize)
 
   /* Perform the back-transform */
 
-  fftw_execute(rhotplan[s]);
+  fftw_execute(rhotplan);
 }
 
 
@@ -204,40 +202,40 @@ void cart_vgrid(int s, int xsize, int ysize)
 
   /* Do the top border */
 
-  r11 = rhot[s][0];
+  r11 = rhot[0];
   for (ix=1; ix<xsize; ix++) {
     r01 = r11;
-    r11 = rhot[s][ix*ysize];
+    r11 = rhot[ix*ysize];
     vxt[s][ix][0] = -2*(r11-r01)/(r11+r01);
     vyt[s][ix][0] = 0.0;
   }
 
   /* Do the bottom border */
 
-  r10 = rhot[s][ysize-1];
+  r10 = rhot[ysize-1];
   for (ix=1; ix<xsize; ix++) {
     r00 = r10;
-    r10 = rhot[s][ix*ysize+ysize-1];
+    r10 = rhot[ix*ysize+ysize-1];
     vxt[s][ix][ysize] = -2*(r10-r00)/(r10+r00);
     vyt[s][ix][ysize] = 0.0;
   }
 
   /* Left edge */
 
-  r11 = rhot[s][0];
+  r11 = rhot[0];
   for (iy=1; iy<ysize; iy++) {
     r10 = r11;
-    r11 = rhot[s][iy];
+    r11 = rhot[iy];
     vxt[s][0][iy] = 0.0;
     vyt[s][0][iy] = -2*(r11-r10)/(r11+r10);
   }
 
   /* Right edge */
 
-  r01 = rhot[s][(xsize-1)*ysize];
+  r01 = rhot[(xsize-1)*ysize];
   for (iy=1; iy<ysize; iy++) {
     r00 = r01;
-    r01 = rhot[s][(xsize-1)*ysize+iy];
+    r01 = rhot[(xsize-1)*ysize+iy];
     vxt[s][xsize][iy] = 0.0;
     vyt[s][xsize][iy] = -2*(r01-r00)/(r01+r00);
   }
@@ -245,13 +243,13 @@ void cart_vgrid(int s, int xsize, int ysize)
   /* Now do all the points in the middle */
 
   for (ix=1; ix<xsize; ix++) {
-    r01 = rhot[s][(ix-1)*ysize];
-    r11 = rhot[s][ix*ysize];
+    r01 = rhot[(ix-1)*ysize];
+    r11 = rhot[ix*ysize];
     for (iy=1; iy<ysize; iy++) {
       r00 = r01;
       r10 = r11;
-      r01 = rhot[s][(ix-1)*ysize+iy];
-      r11 = rhot[s][ix*ysize+iy];
+      r01 = rhot[(ix-1)*ysize+iy];
+      r11 = rhot[ix*ysize+iy];
       mid = r10 + r00 + r11 + r01;
       vxt[s][ix][iy] = -2*(r10-r00+r11-r01)/mid;
       vyt[s][ix][iy] = -2*(r01-r00+r11-r10)/mid;
@@ -355,18 +353,19 @@ void cart_twosteps(double *pointx, double *pointy, int npoints,
   s3 = (s+3)%5;
   s4 = (s+4)%5;
 
-  /* Calculate the density field for the four new time slices */
+  /* Calculate the density field for the four new time slices,
+     and the resulting velocity grids */
 
-  cart_density(t+0.5*h,s1,xsize,ysize);
-  cart_density(t+1.0*h,s2,xsize,ysize);
-  cart_density(t+1.5*h,s3,xsize,ysize);
-  cart_density(t+2.0*h,s4,xsize,ysize);
-
-  /* Calculate the resulting velocity grids */
-
+  cart_density(t+0.5*h,xsize,ysize);
   cart_vgrid(s1,xsize,ysize);
+
+  cart_density(t+1.0*h,xsize,ysize);
   cart_vgrid(s2,xsize,ysize);
+
+  cart_density(t+1.5*h,xsize,ysize);
   cart_vgrid(s3,xsize,ysize);
+
+  cart_density(t+2.0*h,xsize,ysize);
   cart_vgrid(s4,xsize,ysize);
 
   /* Do all three RK steps for each point in turn */
@@ -506,7 +505,7 @@ void cart_makecart(double *pointx, double *pointy, int npoints,
 
   /* Calculate the initial density and velocity for snapshot zero */
 
-  cart_density(0.0,0,xsize,ysize);
+  cart_density(0.0,xsize,ysize);
   cart_vgrid(0,xsize,ysize);
   s = 0;
 
