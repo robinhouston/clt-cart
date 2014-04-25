@@ -6,6 +6,10 @@
 		<script src="d3.v3.min.js"></script>
 		<script src="topojson.v1.min.js"></script>
 		<style>
+			body { font-family: sans-serif; }
+			#menu { width: 1000px; text-align: center; margin: 12px 0; }
+			#menu a { padding: 0 8px; }
+			#menu a:visited { color: blue; }
 			#container { position: relative; }
 			#container #map, #container canvas { position: absolute; top: 0; left: 0; }
 			svg path { fill: #666; stroke: white; }
@@ -14,7 +18,12 @@
 		</style>
 	</head>
 	<body>
-		<h1>Cartograms</h1>
+		<div id="menu">
+			<a href="#original">Ordinary map</a>
+			<a href="#cltcart">CLT cartogram</a>
+			<!-- <a href="#blur">DCT blur=1</a> -->
+			<a href="#cart">DCT cartogram</a>
+		</div>
 		<div id="container">
 			<div id="map"></div>
 		</div>
@@ -31,6 +40,13 @@
 					}
 				}
 			}
+			
+			var MAPS = {
+				"#original": "map-original.topo.json",
+				"#cltcart": "map-cltcart.topo.json",
+				"#cart":  "map-cart.topo.json",
+				"#blur": "map-blur.topo.json"
+			};
 			
 			var X_MIN = -17005833.33053,
 			    X_MAX = 17005833.33053,
@@ -90,9 +106,18 @@
 				});
 			}
 			
-			load("map-original.topo.json", function() {
-				setTimeout(function() { load("map-cart.topo.json"); }, 1000);
-			});
+			function changeMap() {
+				var filename = MAPS[window.location.hash];
+				if (typeof filename == "undefined") {
+					filename = "map-original.topo.json";
+				}
+				load(filename);
+			}
+			
+			window.addEventListener("hashchange", function(x) {
+				changeMap();
+			}, false);
+			changeMap();
 			
 			var canvas = d3.select("#container").append("canvas").attr("width", WIDTH).attr("height", HEIGHT),
 			    cx = canvas.node().getContext("2d");
