@@ -60,9 +60,11 @@
 			    Y_MAX = 8625154.47185,
 			
 			    WIDTH = 500,
-			    HEIGHT = 250;
+			    HEIGHT = 250,
+			    SCALE = 2;
 			
-			var svg = d3.select("#map").append("svg").attr("width", WIDTH).attr("height", HEIGHT);
+			var svg = d3.select("#map").append("svg")
+				.attr("width", SCALE*WIDTH).attr("height", SCALE*HEIGHT);
 			
 			function load(json_path, callback) {
 				d3.json(json_path, function(error, data, z) {
@@ -74,7 +76,7 @@
 					var path = d3.geo.path().projection(d3.geo.transform({point: function(x, y) {
 						x = Math.round(WIDTH * (x - X_MIN) / (X_MAX - X_MIN));
 						y = Math.round(HEIGHT * (y - Y_MIN) / (Y_MAX - Y_MIN));
-						this.stream.point(x, HEIGHT - y);
+						this.stream.point(x * SCALE, (HEIGHT - y) * SCALE);
 					}}));
 					var geometry_collection = topojson.feature(data, data.objects["map.geo"]);
 
