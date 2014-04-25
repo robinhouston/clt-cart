@@ -1,4 +1,8 @@
-out/cart/areas.txt: out/cart/map.topo.json
+.PHONY: measure
+measure: out/cart/areas.csv
+	bin/accuracy.py data/population.csv data/area.csv
+
+out/cart/areas.csv: out/cart/map.topo.json
 	bin/topojson-area out/cart/map.topo.json > $@
 
 out/cart/map.topo.json: data/map.topo.json out/cart/points.txt
@@ -32,5 +36,5 @@ data/population.csv:
 	    echo "Country,Population"
 	    /usr/local/cartograms/bin/csv-snip --cols=B,E --expect-header="Alpha-2,Value" \
 	    --munge=E=s/\.0$// \
-	    ~/Kiln/world-gold-council/GoldMap/data/maps/live/Population.csv  | sort
+	    ~/Kiln/world-gold-council/GoldMap/data/maps/live/Population.csv | sort
 	) > $@
