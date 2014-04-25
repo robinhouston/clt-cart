@@ -1,0 +1,5 @@
+.DS_Store
+/code/*.o
+/code/cart
+/code/cltcart
+/code/interp

@@ -1,0 +1,16 @@
+{
+  "name": "topojson-area",
+  "version": "1.0.0",
+  "description": "Find the area of geometry objects in a topojson file",
+  "main": "index.js",
+  "dependencies": {
+    "d3": "~3.4.3",
+    "topojson": "~1.4.9"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Robin Houston",
+  "license": "ISC"
+}
