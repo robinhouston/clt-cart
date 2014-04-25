@@ -25,6 +25,9 @@ data/density.grid: data/population.csv data/area.csv bin/density-grid.py
 	    --denominator-key="Feature ID" --denominator-value=Area data/area.csv \
 	> $@
 
+data/map-grid.csv: /usr/local/cartograms/bin/extract-grid.sh
+	/usr/local/cartograms/bin/extract-grid.sh 'world-10m-robinson' > $@
+
 data/area.csv: data/map.topo.json
 	bin/topojson-area data/map.topo.json > $@
 
