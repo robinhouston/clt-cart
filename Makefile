@@ -13,6 +13,9 @@ out/%/map.topo.json: out/%/points.txt data/map.topo.json
 out/cart/points.txt: data/density.grid data/points.txt code/cart
 	code/cart 500 250 data/density.grid data/points.txt > $@
 
+out/cltcart/points.txt: data/density.grid data/points.txt code/cltcart
+	code/cltcart 500 250 data/density.grid data/points.txt > $@
+
 data/density.grid: data/population.csv data/area.csv bin/density-grid.py
 	bin/density-grid.py data/map-grid.csv \
 	    --numerator-key=Country --numerator-value=Population data/population.csv \
