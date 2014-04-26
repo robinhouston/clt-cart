@@ -33,8 +33,6 @@ double *temp;
 double **vxt[5];       // x-velocity at time t
 double **vyt[5];       // y-velocity at time t
 
-double *expky;         // Array needed for the Gaussian convolution
-
 
 /* Function to make space for the density array.  This is done in such a
  * way as to allow rho to be accessed either as a single block
@@ -79,7 +77,6 @@ void cart_makews(int xsize, int ysize)
     for (i=0; i<=xsize; i++) vyt[s][i] = malloc((ysize+1)*sizeof(double));
   }
 
-  expky = malloc(ysize*sizeof(double));
   temp = malloc(xsize * ysize * sizeof(double));
 }
 
@@ -101,7 +98,6 @@ void cart_freews(int xsize, int ysize)
     free(vyt[s]);
   }
 
-  free(expky);
   free(temp);
 }
 
