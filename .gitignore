@@ -2,4 +2,5 @@
 /code/*.o
 /code/cart
 /code/cltcart
+/code/icltcart
 /code/interp
