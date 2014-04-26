@@ -90,7 +90,7 @@ void cart_makews(int xsize, int ysize)
 
   expky = malloc(ysize*sizeof(double));
 
-  /* Make plans for the back transforms */
+  /* Make a plan for the back transform */
 
   rhotplan = fftw_plan_r2r_2d(xsize,ysize,fftexpt,rhot,
 				   FFTW_REDFT01,FFTW_REDFT01,FFTW_MEASURE);
