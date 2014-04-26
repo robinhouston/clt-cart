@@ -1,4 +1,4 @@
-CFLAGS = -Ofast -Wall
+CFLAGS = -Ofast -Wall -g
 CC = gcc
 LIBS = -lm
 LDFLAGS = $(LIBS)
