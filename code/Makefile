@@ -14,4 +14,4 @@ cart: main.o cart.o
 cltcart: main.o cltcart.o
 
 clean:
-	rm -fv *.o
+	rm -fv *.o cart
