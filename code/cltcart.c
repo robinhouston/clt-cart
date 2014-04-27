@@ -27,7 +27,7 @@
 
 /* Globals */
 
-double *rhot[5];       // Pop density at time t (five snaps needed)
+double *rhot;         // Pop density at time t (five snaps needed)
 double *temp;
 
 double **vxt[5];       // x-velocity at time t
@@ -66,7 +66,7 @@ void cart_makews(int xsize, int ysize)
 {
   int s,i;
 
-  for (s=0; s<5; s++) rhot[s] = malloc(xsize*ysize*sizeof(double));
+  rhot = malloc(xsize*ysize*sizeof(double));
 
   for (s=0; s<5; s++) {
     vxt[s] = malloc((xsize+1)*sizeof(double*));
@@ -87,7 +87,7 @@ void cart_freews(int xsize, int ysize)
 {
   int s,i;
 
-  for (s=0; s<5; s++) free(rhot[s]);
+  free(rhot);
 
   for (s=0; s<5; s++) {
     for (i=0; i<=xsize; i++) free(vxt[s][i]);
@@ -109,7 +109,7 @@ void cart_transform(double **userrho, int xsize, int ysize)
   int i;
   
   for (i=0; i < xsize * ysize; i++) {
-    rhot[0][i] = (*userrho)[i];
+    rhot[i] = (*userrho)[i];
   }
 }
 
@@ -152,9 +152,9 @@ void cart_density_stripe(double *from, double w, double *to, int start, int step
 }
 
 /** Calculate the population density at arbitrary time, and put the result
- in a particular rhot[] snapshot array. Use a box blur with the same variance
+ in the rhot snapshot array. Use a box blur with the same variance
  as the Gaussian. */
-void cart_density(int from_s, double delta_t, int to_s, int xsize, int ysize)
+void cart_density(double delta_t, int xsize, int ysize)
 {
   double w;
   int x, y;
@@ -163,10 +163,10 @@ void cart_density(int from_s, double delta_t, int to_s, int xsize, int ysize)
   w = sqrt(6.0 * delta_t);
   
   for (x=0; x < xsize; x++) {
-    cart_density_stripe(rhot[from_s], w, temp, x * ysize, 1, ysize);
+    cart_density_stripe(rhot, w, temp, x * ysize, 1, ysize);
   }
   for (y=0; y < ysize; y++) {
-    cart_density_stripe(temp, w, rhot[to_s], y, ysize, xsize);
+    cart_density_stripe(temp, w, rhot, y, ysize, xsize);
   }
 }
 
@@ -190,40 +190,40 @@ void cart_vgrid(int s, int xsize, int ysize)
 
   /* Do the top border */
 
-  r11 = rhot[s][0];
+  r11 = rhot[0];
   for (ix=1; ix<xsize; ix++) {
     r01 = r11;
-    r11 = rhot[s][ix*ysize];
+    r11 = rhot[ix*ysize];
     vxt[s][ix][0] = -2*(r11-r01)/(r11+r01);
     vyt[s][ix][0] = 0.0;
   }
 
   /* Do the bottom border */
 
-  r10 = rhot[s][ysize-1];
+  r10 = rhot[ysize-1];
   for (ix=1; ix<xsize; ix++) {
     r00 = r10;
-    r10 = rhot[s][ix*ysize+ysize-1];
+    r10 = rhot[ix*ysize+ysize-1];
     vxt[s][ix][ysize] = -2*(r10-r00)/(r10+r00);
     vyt[s][ix][ysize] = 0.0;
   }
 
   /* Left edge */
 
-  r11 = rhot[s][0];
+  r11 = rhot[0];
   for (iy=1; iy<ysize; iy++) {
     r10 = r11;
-    r11 = rhot[s][iy];
+    r11 = rhot[iy];
     vxt[s][0][iy] = 0.0;
     vyt[s][0][iy] = -2*(r11-r10)/(r11+r10);
   }
 
   /* Right edge */
 
-  r01 = rhot[s][(xsize-1)*ysize];
+  r01 = rhot[(xsize-1)*ysize];
   for (iy=1; iy<ysize; iy++) {
     r00 = r01;
-    r01 = rhot[s][(xsize-1)*ysize+iy];
+    r01 = rhot[(xsize-1)*ysize+iy];
     vxt[s][xsize][iy] = 0.0;
     vyt[s][xsize][iy] = -2*(r01-r00)/(r01+r00);
   }
@@ -231,13 +231,13 @@ void cart_vgrid(int s, int xsize, int ysize)
   /* Now do all the points in the middle */
 
   for (ix=1; ix<xsize; ix++) {
-    r01 = rhot[s][(ix-1)*ysize];
-    r11 = rhot[s][ix*ysize];
+    r01 = rhot[(ix-1)*ysize];
+    r11 = rhot[ix*ysize];
     for (iy=1; iy<ysize; iy++) {
       r00 = r01;
       r10 = r11;
-      r01 = rhot[s][(ix-1)*ysize+iy];
-      r11 = rhot[s][ix*ysize+iy];
+      r01 = rhot[(ix-1)*ysize+iy];
+      r11 = rhot[ix*ysize+iy];
       mid = r10 + r00 + r11 + r01;
       vxt[s][ix][iy] = -2*(r10-r00+r11-r01)/mid;
       vyt[s][ix][iy] = -2*(r01-r00+r11-r10)/mid;
@@ -341,18 +341,19 @@ void cart_twosteps(double *pointx, double *pointy, int npoints,
   s3 = (s+3)%5;
   s4 = (s+4)%5;
 
-  /* Calculate the density field for the four new time slices */
+  /* Calculate the density field for the four new time slices,
+     and the resulting velocity grids */
 
-  cart_density(s0, 0.5*h, s1, xsize, ysize);
-  cart_density(s1, 0.5*h, s2, xsize, ysize);
-  cart_density(s2, 0.5*h, s3, xsize, ysize);
-  cart_density(s3, 0.5*h, s4, xsize, ysize);
-
-  /* Calculate the resulting velocity grids */
-
+  cart_density(0.5*h, xsize, ysize);
   cart_vgrid(s1,xsize,ysize);
+
+  cart_density(0.5*h, xsize, ysize);
   cart_vgrid(s2,xsize,ysize);
+
+  cart_density(0.5*h, xsize, ysize);
   cart_vgrid(s3,xsize,ysize);
+
+  cart_density(0.5*h, xsize, ysize);
   cart_vgrid(s4,xsize,ysize);
 
   /* Do all three RK steps for each point in turn */

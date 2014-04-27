@@ -11,6 +11,9 @@ main.o: main.c
 cart: main.o cart.o
 	$(CC) $(CFLAGS) $(LIBS) -lfftw3 -o $@ $^
 
+cartv: main.o cartv.o
+	$(CC) $(CFLAGS) $(LIBS) -lfftw3 -o $@ $^
+
 cltcart: main.o cltcart.o
 
 icltcart: main.o icltcart.o

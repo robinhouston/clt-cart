@@ -1,6 +1,8 @@
 /* Routines to transform a given set of points to a Gastner-Newman cartogram
  *
  * Written by Mark Newman
+ * This version economizes on memory at the expense of speed by calculating
+ *   the velocity field on the fly
  *
  * See http://www.umich.edu/~mejn/ for further details.
  */
@@ -10,7 +12,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
-#include <string.h>
 #include <fftw3.h>
 
 #include "cart.h"
@@ -19,7 +20,6 @@
 
 #define INITH 0.001          // Initial size of a time-step
 #define TARGETERROR 0.01     // Desired accuracy per step in pixels
-#define MAXERROR 0.5         // Maximum permissible error
 #define MAXRATIO 4.0         // Max ratio to increase step size by
 #define EXPECTEDTIME 1.0e8   // Guess as to the time it will take, used to
                              // estimate completion
@@ -28,16 +28,13 @@
 
 /* Globals */
 
-double *rhot;          // Pop density at time t
+double *rhot[5];       // Pop density at time t (five snaps needed)
 double *fftrho;        // FT of initial density
 double *fftexpt;       // FT of density at time t
 
-double **vxt[5];       // x-velocity at time t
-double **vyt[5];       // y-velocity at time t
-
 double *expky;         // Array needed for the Gaussian convolution
 
-fftw_plan rhotplan; // Plan for rho(t) back-transform at time t
+fftw_plan rhotplan[5]; // Plan for rho(t) back-transform at time t
 
 
 /* Function to make space for the density array.  This is done in such a
@@ -75,25 +72,18 @@ void cart_makews(int xsize, int ysize)
   /* Space for the FFT arrays is allocated single blocks, rather than using
    * a true two-dimensional array, because libfftw demands that it be so */
 
-  rhot = fftw_malloc(xsize*ysize*sizeof(double));
+  for (s=0; s<5; s++) rhot[s] = fftw_malloc(xsize*ysize*sizeof(double));
   fftrho = fftw_malloc(xsize*ysize*sizeof(double));
   fftexpt = fftw_malloc(xsize*ysize*sizeof(double));
 
-  for (s=0; s<5; s++) {
-    vxt[s] = malloc((xsize+1)*sizeof(double*));
-    for (i=0; i<=xsize; i++) vxt[s][i] = malloc((ysize+1)*sizeof(double));
-  }
-  for (s=0; s<5; s++) {
-    vyt[s] = malloc((xsize+1)*sizeof(double*));
-    for (i=0; i<=xsize; i++) vyt[s][i] = malloc((ysize+1)*sizeof(double));
-  }
-
   expky = malloc(ysize*sizeof(double));
 
-  /* Make a plan for the back transform */
+  /* Make plans for the back transforms */
 
-  rhotplan = fftw_plan_r2r_2d(xsize,ysize,fftexpt,rhot,
+  for (i=0; i<5; i++) {
+    rhotplan[i] = fftw_plan_r2r_2d(xsize,ysize,fftexpt,rhot[i],
 				   FFTW_REDFT01,FFTW_REDFT01,FFTW_MEASURE);
+  }
 }
 
 
@@ -104,22 +94,13 @@ void cart_freews(int xsize, int ysize)
 {
   int s,i;
 
-  fftw_free(rhot);
+  for (s=0; s<5; s++) fftw_free(rhot[s]);
   fftw_free(fftrho);
   fftw_free(fftexpt);
 
-  for (s=0; s<5; s++) {
-    for (i=0; i<=xsize; i++) free(vxt[s][i]);
-    free(vxt[s]);
-  }
-  for (s=0; s<5; s++) {
-    for (i=0; i<=xsize; i++) free(vyt[s][i]);
-    free(vyt[s]);
-  }
-
   free(expky);
 
-  fftw_destroy_plan(rhotplan);
+  for (i=0; i<5; i++) fftw_destroy_plan(rhotplan[i]);
 }
 
 
@@ -132,7 +113,7 @@ void cart_forward(double *rho, int xsize, int ysize)
   fftw_plan plan;
 
   plan = fftw_plan_r2r_2d(xsize,ysize,rho,fftrho,
-                          FFTW_REDFT10,FFTW_REDFT10,FFTW_ESTIMATE);
+			  FFTW_REDFT10,FFTW_REDFT10,FFTW_ESTIMATE);
   fftw_execute(plan);
   fftw_destroy_plan(plan);
 }
@@ -144,17 +125,17 @@ void cart_forward(double *rho, int xsize, int ysize)
 
 void cart_transform(double **userrho, int xsize, int ysize)
 {
-  cart_forward(*userrho, xsize, ysize);
+  cart_forward(*userrho,xsize,ysize);
 }
 
 
 /* Function to calculate the population density at arbitrary time by back-
- * transforming and put the result in the rhot snapshot array.
+ * transforming and put the result in a particular rhot[] snapshot array.
  * Calculates unnormalized densities, since FFTW gives unnormalized back-
  * transforms, but this doesn't matter because the cartogram method is
  * insensitive to variation in the density by a multiplicative constant */
 
-void cart_density(double t, int xsize, int ysize)
+void cart_density(double t, int s, int xsize, int ysize)
 {
   int ix,iy;
   double kx,ky;
@@ -179,84 +160,8 @@ void cart_density(double t, int xsize, int ysize)
 
   /* Perform the back-transform */
 
-  fftw_execute(rhotplan);
+  fftw_execute(rhotplan[s]);
 }
-
-
-/* Function to calculate the velocity at all integer grid points for a
- * specified snapshot */
-
-void cart_vgrid(int s, int xsize, int ysize)
-{
-  int ix,iy;
-  double r00,r10;
-  double r01,r11;
-  double mid;
-
-  /* Do the corners */
-
-  vxt[s][0][0] = vyt[s][0][0] = 0.0;
-  vxt[s][xsize][0] = vyt[s][xsize][0] = 0.0;
-  vxt[s][0][ysize] = vyt[s][0][ysize] = 0.0;
-  vxt[s][xsize][ysize] = vyt[s][xsize][ysize] = 0.0;
-
-  /* Do the top border */
-
-  r11 = rhot[0];
-  for (ix=1; ix<xsize; ix++) {
-    r01 = r11;
-    r11 = rhot[ix*ysize];
-    vxt[s][ix][0] = -2*(r11-r01)/(r11+r01);
-    vyt[s][ix][0] = 0.0;
-  }
-
-  /* Do the bottom border */
-
-  r10 = rhot[ysize-1];
-  for (ix=1; ix<xsize; ix++) {
-    r00 = r10;
-    r10 = rhot[ix*ysize+ysize-1];
-    vxt[s][ix][ysize] = -2*(r10-r00)/(r10+r00);
-    vyt[s][ix][ysize] = 0.0;
-  }
-
-  /* Left edge */
-
-  r11 = rhot[0];
-  for (iy=1; iy<ysize; iy++) {
-    r10 = r11;
-    r11 = rhot[iy];
-    vxt[s][0][iy] = 0.0;
-    vyt[s][0][iy] = -2*(r11-r10)/(r11+r10);
-  }
-
-  /* Right edge */
-
-  r01 = rhot[(xsize-1)*ysize];
-  for (iy=1; iy<ysize; iy++) {
-    r00 = r01;
-    r01 = rhot[(xsize-1)*ysize+iy];
-    vxt[s][xsize][iy] = 0.0;
-    vyt[s][xsize][iy] = -2*(r01-r00)/(r01+r00);
-  }
-
-  /* Now do all the points in the middle */
-
-  for (ix=1; ix<xsize; ix++) {
-    r01 = rhot[(ix-1)*ysize];
-    r11 = rhot[ix*ysize];
-    for (iy=1; iy<ysize; iy++) {
-      r00 = r01;
-      r10 = r11;
-      r01 = rhot[(ix-1)*ysize+iy];
-      r11 = rhot[ix*ysize+iy];
-      mid = r10 + r00 + r11 + r01;
-      vxt[s][ix][iy] = -2*(r10-r00+r11-r01)/mid;
-      vyt[s][ix][iy] = -2*(r01-r00+r11-r10)/mid;
-    }
-  }
-}
-
 
 
 /* Function to calculate the velocity at an arbitrary point from the grid
@@ -270,6 +175,14 @@ void cart_velocity(double rx, double ry, int s, int xsize, int ysize,
 		   double *vxp, double *vyp)
 {
   int ix,iy;
+  int ixm1,iym1,ixp1,iyp1;
+  double rho00,rho10,rho20;
+  double rho01,rho11,rho21;
+  double rho02,rho12,rho22;
+  double vx11,vy11,mid11;
+  double vx21,vy21,mid21;
+  double vx12,vy12,mid12;
+  double vx22,vy22,mid22;
   double dx,dy;
   double dx1m,dy1m;
   double w11,w21,w12,w22;
@@ -280,9 +193,50 @@ void cart_velocity(double rx, double ry, int s, int xsize, int ysize,
   if (ix<0) ix = 0;
   else if (ix>=xsize) ix = xsize - 1;
 
+  ixm1 = ix - 1;
+  if (ixm1<0) ixm1 = 0;
+  ixp1 = ix + 1;
+  if (ixp1>=xsize) ixp1 = xsize - 1;
+
   iy = ry;
   if (iy<0) iy = 0;
   else if (iy>=ysize) iy = ysize - 1;
+  iyp1 = iy + 1;
+
+  iym1 = iy - 1;
+  if (iym1<0) iym1 = 0;
+  iyp1 = iy + 1;
+  if (iyp1>=ysize) iyp1 = ysize - 1;
+
+  /* Calculate the densities at the nine surrounding grid points */
+
+  rho00 = rhot[s][ixm1*ysize+iym1];
+  rho10 = rhot[s][ix*ysize+iym1];
+  rho20 = rhot[s][ixp1*ysize+iym1];
+  rho01 = rhot[s][ixm1*ysize+iy];
+  rho11 = rhot[s][ix*ysize+iy];
+  rho21 = rhot[s][ixp1*ysize+iy];
+  rho02 = rhot[s][ixm1*ysize+iyp1];
+  rho12 = rhot[s][ix*ysize+iyp1];
+  rho22 = rhot[s][ixp1*ysize+iyp1];
+
+  /* Calculate velocities at the four surrounding grid points */
+
+  mid11 = rho00+rho10+rho01+rho11;
+  vx11 = -2.0*(rho10-rho00+rho11-rho01)/mid11;
+  vy11 = -2.0*(rho01-rho00+rho11-rho10)/mid11;
+
+  mid21 = rho10+rho20+rho11+rho21;
+  vx21 = -2.0*(rho20-rho10+rho21-rho11)/mid21;
+  vy21 = -2.0*(rho11-rho10+rho21-rho20)/mid21;
+
+  mid12 = rho01+rho11+rho02+rho12;
+  vx12 = -2.0*(rho11-rho01+rho12-rho02)/mid12;
+  vy12 = -2.0*(rho02-rho01+rho12-rho11)/mid12;
+
+  mid22 = rho11+rho21+rho12+rho22;
+  vx22 = -2.0*(rho21-rho11+rho22-rho12)/mid22;
+  vy22 = -2.0*(rho12-rho11+rho22-rho21)/mid22;
 
   /* Calculate the weights for the bilinear interpolation */
 
@@ -299,10 +253,8 @@ void cart_velocity(double rx, double ry, int s, int xsize, int ysize,
 
   /* Perform the interpolation for x and y components of velocity */
 
-  *vxp = w11*vxt[s][ix][iy] + w21*vxt[s][ix+1][iy] +
-         w12*vxt[s][ix][iy+1] + w22*vxt[s][ix+1][iy+1];
-  *vyp = w11*vyt[s][ix][iy] + w21*vyt[s][ix+1][iy] +
-         w12*vyt[s][ix][iy+1] + w22*vyt[s][ix+1][iy+1];
+  *vxp = w11*vx11 + w21*vx21 + w12*vx12 + w22*vx22;
+  *vyp = w11*vy11 + w21*vy21 + w12*vy12 + w22*vy22;
 }
 
 
@@ -353,20 +305,12 @@ void cart_twosteps(double *pointx, double *pointy, int npoints,
   s3 = (s+3)%5;
   s4 = (s+4)%5;
 
-  /* Calculate the density field for the four new time slices,
-     and the resulting velocity grids */
+  /* Calculate the density field for the four new time slices */
 
-  cart_density(t+0.5*h,xsize,ysize);
-  cart_vgrid(s1,xsize,ysize);
-
-  cart_density(t+1.0*h,xsize,ysize);
-  cart_vgrid(s2,xsize,ysize);
-
-  cart_density(t+1.5*h,xsize,ysize);
-  cart_vgrid(s3,xsize,ysize);
-
-  cart_density(t+2.0*h,xsize,ysize);
-  cart_vgrid(s4,xsize,ysize);
+  cart_density(t+0.5*h,s1,xsize,ysize);
+  cart_density(t+1.0*h,s2,xsize,ysize);
+  cart_density(t+1.5*h,s3,xsize,ysize);
+  cart_density(t+2.0*h,s4,xsize,ysize);
 
   /* Do all three RK steps for each point in turn */
 
@@ -495,18 +439,13 @@ void cart_makecart(double *pointx, double *pointy, int npoints,
   int s,sp;
   int step;
   int done;
-  double t,h,prev_h;
+  double t,h;
   double error,dr;
-  double desiredratio, chosenratio;
-  double *pointx_copy, *pointy_copy;
+  double desiredratio;
 
-  pointx_copy = malloc(npoints * sizeof(double));
-  pointy_copy = malloc(npoints * sizeof(double));
+  /* Calculate the initial density for snapshot zero */
 
-  /* Calculate the initial density and velocity for snapshot zero */
-
-  cart_density(0.0,xsize,ysize);
-  cart_vgrid(0,xsize,ysize);
+  cart_density(0.0,0,xsize,ysize);
   s = 0;
 
   /* Now integrate the points in the polygons */
@@ -519,19 +458,7 @@ void cart_makecart(double *pointx, double *pointy, int npoints,
 
     /* Do a combined (triple) integration step */
 
-    memcpy(pointx_copy, pointx, npoints * sizeof(double));
-    memcpy(pointy_copy, pointy, npoints * sizeof(double));
-    cart_twosteps(pointx, pointy, npoints, t, h, s, xsize, ysize, &error, &dr, &sp);
-
-    while(error > MAXERROR) {
-      h /= 2;
-      if (options->progress_mode == DETAILED)
-        fprintf(stderr, "dr = %g and error = %g, so retrying with h = %g\n", dr, error, h);
-    
-      memcpy(pointx, pointx_copy, npoints * sizeof(double));
-      memcpy(pointy, pointy_copy, npoints * sizeof(double));
-      cart_twosteps(pointx,pointy,npoints,t,h,s,xsize,ysize,&error,&dr,&sp);
-    }
+    cart_twosteps(pointx,pointy,npoints,t,h,s,xsize,ysize,&error,&dr,&sp);
 
     /* Increase the time by 2h and rotate snapshots */
 
@@ -542,15 +469,9 @@ void cart_makecart(double *pointx, double *pointy, int npoints,
     /* Adjust the time-step.  Factor of 2 arises because the target for
      * the two-step process is twice the target for an individual step */
 
-    desiredratio = pow(2 * TARGETERROR / error, 0.2);
-    if (desiredratio > MAXRATIO) chosenratio = MAXRATIO;
-    else chosenratio = desiredratio;
-    
-    prev_h = h;
-    if (h * chosenratio <= options->max_h)
-      h *= chosenratio;
-    else
-      fprintf(stderr, "h * chosenratio = %g, which is > max_h = %g\n", h * chosenratio, options->max_h);
+    desiredratio = pow(2*TARGETERROR/error,0.2);
+    if (desiredratio>MAXRATIO) h *= MAXRATIO;
+    else h *= desiredratio;
 
     done = cart_complete(t);
     switch (options->progress_mode) {
@@ -569,10 +490,10 @@ void cart_makecart(double *pointx, double *pointy, int npoints,
         fprintf(stderr, "step=%d, t=%g, h=%g, dr=%g, error=%g, done=%d%%\n", step, t, h, dr, error, done);
         break;
     }
-    
+
     /* If no point moved then we are finished */
 
-  } while (dr > 0.0);
+  } while (dr>0.0);
 
   switch (options->progress_mode) {
     case PERCENT:
@@ -584,7 +505,4 @@ void cart_makecart(double *pointx, double *pointy, int npoints,
     default:
       break;
   }
-  
-  free(pointx_copy);
-  free(pointy_copy);
 }
