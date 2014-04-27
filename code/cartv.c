@@ -201,7 +201,6 @@ void cart_velocity(double rx, double ry, int s, int xsize, int ysize,
   iy = ry;
   if (iy<0) iy = 0;
   else if (iy>=ysize) iy = ysize - 1;
-  iyp1 = iy + 1;
 
   iym1 = iy - 1;
   if (iym1<0) iym1 = 0;
