@@ -61,7 +61,7 @@ void cart_dfree(double **userrho)
 
 void cart_makews(int xsize, int ysize)
 {
-  int s,i;
+  int s;
 
   for (s=0; s<5; s++) rhot[s] = malloc(xsize * ysize * sizeof(double));
   temp = malloc(xsize * ysize * sizeof(double));
@@ -72,7 +72,7 @@ void cart_makews(int xsize, int ysize)
 
 void cart_freews(int xsize, int ysize)
 {
-  int s,i;
+  int s;
 
   for (s=0; s<5; s++) free(rhot[s]);
   free(temp);
@@ -296,13 +296,6 @@ void cart_twosteps(double *pointx, double *pointy, int npoints,
   cart_density(s2, 0.5*h, s3, xsize, ysize);
   cart_density(s3, 0.5*h, s4, xsize, ysize);
 
-  /* Calculate the resulting velocity grids */
-
-  cart_vgrid(s1,xsize,ysize);
-  cart_vgrid(s2,xsize,ysize);
-  cart_vgrid(s3,xsize,ysize);
-  cart_vgrid(s4,xsize,ysize);
-
   /* Do all three RK steps for each point in turn */
 
   esqmax = drsqmax = 0.0;
@@ -440,7 +433,6 @@ void cart_makecart(double *pointx, double *pointy, int npoints,
 
   /* Calculate the initial velocity for snapshot zero */
 
-  cart_vgrid(0, xsize, ysize);
   s = 0;
 
   /* Now integrate the points in the polygons */
