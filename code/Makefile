@@ -18,5 +18,8 @@ cltcart: main.o cltcart.o
 
 cltcartv: main.o cltcartv.o
 
+compare: compare.c
+	$(CC) $(CFLAGS) -lfftw3 -o $@ $^
+
 clean:
 	rm -fv *.o cart cltcart
