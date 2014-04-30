@@ -16,6 +16,9 @@ out/blur/points.txt: data/density.grid data/points.txt code/cart
 out/cart/points.txt: data/density.grid data/points.txt code/cart
 	code/cart 500 250 data/density.grid data/points.txt > $@
 
+out/cartdp/points.txt: data/density.grid data/points.txt code/cartdp
+	code/cartdp 500 250 data/density.grid data/points.txt > $@
+
 out/cltcart/points.txt: data/density.grid data/points.txt code/cltcart
 	code/cltcart 500 250 data/density.grid data/points.txt > $@
 
