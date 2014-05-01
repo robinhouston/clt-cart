@@ -18,7 +18,7 @@ cltcart: main.o cltcart.o
 
 cltcartv: main.o cltcartv.o
 
-compare: compare.c
+compare: compare.c bessel.o
 	$(CC) $(CFLAGS) -lfftw3 -o $@ $^
 
 clean:

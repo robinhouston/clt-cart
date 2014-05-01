@@ -5,6 +5,8 @@
 
 #include <fftw3.h>
 
+#include "bessel.h"
+
 #define PI 3.1415926535897932384626
 
 #ifndef OFFSET
@@ -152,9 +154,9 @@ void cart_density_stripe(double *from, double w, double *to, int start, int step
   }
 }
 
-void cart_density_stripe2(double *from, double a, double *to, int start, int step, int n)
+void cart_density_stripe2(double *from, double a, double b, double *to, int start, int step, int n)
 {
-  double b = (1.0 - a) / 2;
+  //double b = (1.0 - a) / 2;
   int i;
   
   for (i=1; i < n-1; i++) {
@@ -175,13 +177,15 @@ void cart_density_clt(double delta_t, int xsize, int ysize)
   /* delta_t is σ^2 / 2, and the variance of a box filter with half-width w is w^2 / 3 */
   w = sqrt(6.0 * delta_t);
   if (w < 1) {
-    double a = erf(0.25 / sqrt(delta_t));
+    double a = exp(-delta_t) * bessi(0, delta_t);
+    double b = exp(-delta_t) * bessi(1, delta_t);
+    printf("w = %g, a=%g / %g\n", w, a, a + 2*b);
   
     for (x=0; x < xsize; x++) {
-      cart_density_stripe2(clt_rhot, a, clt_temp, x * ysize, 1, ysize);
+      cart_density_stripe2(clt_rhot, a, b, clt_temp, x * ysize, 1, ysize);
     }
     for (y=0; y < ysize; y++) {
-      cart_density_stripe2(clt_temp, a, clt_rhot, y, ysize, xsize);
+      cart_density_stripe2(clt_temp, a, b, clt_rhot, y, ysize, xsize);
     }
     return;
   }
@@ -287,13 +291,13 @@ double compare(int xsize, int ysize) {
 }
 
 
-
 int main(int argc, char **argv) {
     int xsize, ysize;
     double **rho_0;
     FILE *infp;
     int i;
     double t;
+    double cumulative_error;
 
     if (argc != 4) {
         fprintf(stderr, "Usage: %s xsize ysize density-grid\n", argv[0]);
@@ -341,6 +345,7 @@ int main(int argc, char **argv) {
     }
 
     t = 0;
+    cumulative_error = 0;
 
     for (i=0; h_values[i] != 0; i++) {
         double h, err;
@@ -350,14 +355,25 @@ int main(int argc, char **argv) {
 
         cart_density_fft(t, xsize*3, ysize*3);
 
-        cart_density_clt(0.5*h, xsize*3, ysize*3);
-        cart_density_clt(0.5*h, xsize*3, ysize*3);
-        cart_density_clt(0.5*h, xsize*3, ysize*3);
-        cart_density_clt(0.5*h, xsize*3, ysize*3);
+        if (t < 1) {
+            set_clt_rhot(*rho_0, xsize*3, ysize*3);
+            cart_density_clt(0.5*t, xsize*3, ysize*3);
+            cart_density_clt(0.5*t, xsize*3, ysize*3);
+            cart_density_clt(0.5*t, xsize*3, ysize*3);
+            cart_density_clt(0.5*t, xsize*3, ysize*3);
+            // cart_density_clt(2.0*t, xsize*3, ysize*3);
+        } else {
+            cart_density_clt(0.5*h, xsize*3, ysize*3);
+            cart_density_clt(0.5*h, xsize*3, ysize*3);
+            cart_density_clt(0.5*h, xsize*3, ysize*3);
+            cart_density_clt(0.5*h, xsize*3, ysize*3);
+        }
 
         err = compare(xsize*3, ysize*3);
+        cumulative_error += h*err;
         printf("[%d] t=%g, h=%g, error=%g\n", i, t, h, h*err);
     }
+    printf("\nCumulative error = %g\n", cumulative_error);
 
     cart_dfree(rho_0);
     free(clt_rhot);
